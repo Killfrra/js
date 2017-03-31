@@ -20,27 +20,18 @@
 	"use strict";
 
 	// Mozilla reference init implementation
-	var initGLFromCanvas = function(canvas) {
-		var gl = null;
-		var attr = {alpha : false, antialias : false};
-
-		// Try to grab the standard context. If it fails, fallback to experimental.
-		gl = canvas.getContext("webgl", attr) || canvas.getContext("experimental-webgl", attr);
+    // Try to grab the standard context
+	var gl = document.createElement('canvas').getContext("webgl2", {alpha : false, antialias : false});
 
 		// If we don't have a GL context, give up now
 		if (!gl)
 			throw new Error("turbojs: Unable to initialize WebGL. Your browser may not support it.");
 
-		return gl;
-	}
-
-	var gl = initGLFromCanvas(document.createElement('canvas'));
-
 	// turbo.js requires a 32bit float vec4 texture. Some systems only provide 8bit/float
 	// textures. A workaround is being created, but turbo.js shouldn't be used on those
 	// systems anyway.
-	if (!gl.getExtension('OES_texture_float'))
-		throw new Error('turbojs: Required texture format OES_texture_float not supported.');
+    if (!gl.getExtension('EXT_color_buffer_float'))
+		throw new Error('turbojs: Required texture format EXT_color_buffer_float not supported.');
 
 	// GPU texture buffer from JS typed array
 	function newBuffer(data, f, e) {
@@ -106,7 +97,7 @@
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.FLOAT, data);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, size, size, 0, gl.RGBA, gl.FLOAT, data);
 		gl.bindTexture(gl.TEXTURE_2D, null);
 
 		return texture;
@@ -153,7 +144,7 @@
 
 			gl.useProgram(program);
 
-			var size = Math.sqrt(ipt.data.length) / 4;
+			var size = Math.sqrt(ipt.length);
 			var texture = createTexture(ipt.data, size);
 
 			gl.viewport(0, 0, size, size);
@@ -184,7 +175,7 @@
 			gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, ipt.data);
 			//                                 ^ 4 x 32 bit ^
 
-			return ipt.data.subarray(0, ipt.length);
+			return ipt.data;
 		},
 		alloc: function(sz) {
 			// A sane limit for most GPUs out there.
@@ -192,9 +183,16 @@
 			if (sz > 16777216)
 				throw new Error("turbojs: Whoops, the maximum array size is exceeded!");
 
-			var ns = Math.pow(Math.pow(2, Math.ceil(Math.log(sz) / 1.386) - 1), 2);
+			var ns = sz-1;
+            ns |= ns >> 1;
+            ns |= ns >> 2;
+            ns |= ns >> 4;
+            ns |= ns >> 8;
+            ns |= ns >> 16;
+            ns++;
+            
 			return {
-				data : new Float32Array(ns * 16),
+				data : new Float32Array(ns * 4),
 				length : sz
 			};
 		}
